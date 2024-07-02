@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  fetcher:
+    build: ./fetcher
+    container_name: fetcher
+    restart: always
+    networks:
+      - default
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URL: mongodb://mongo:27017/?replicaSet=rs0&directConnection=true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+  api:
+    build: ./api
+    container_name: api
+    restart: always
+    ports:
+      - 8080:8080
+    networks:
+      - default
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URL: mongodb://mongo:27017/?replicaSet=rs0&directConnection=true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    networks:
+      - default
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - 27017:27017
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'host.docker.internal:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      retries: 30
+    volumes:
+      - "mongo_data:/data/db"
+      - "mongo_config:/data/configdb"
+volumes:
+  mongo_data:
+  mongo_config:
+networks:
+  default:
+    driver: bridge
